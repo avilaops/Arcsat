@@ -10,7 +10,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # Frontend framework do Arxis
-avila-frontend = { path = "../../../arxis/avila-frontend" }
+avila-frontend = { path = "../avila-frontend" }
 
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"

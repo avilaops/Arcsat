@@ -9,8 +9,10 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy backend files
+# Copy workspace files
+COPY Cargo.toml ./
 COPY backend ./backend
+COPY avila-* ./
 
 # Build backend in release mode
 WORKDIR /app/backend
