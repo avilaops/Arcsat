@@ -45,21 +45,21 @@ jobs:
     - name: Cache cargo build
       uses: actions/cache@v3
       with:
-        path: ERP/frontend-wasm/target
+        path: frontend-wasm/target
         key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
 
     - name: Build WASM
       run: |
-        cd ERP/frontend-wasm
+        cd frontend-wasm
         wasm-pack build --target web --release
 
     - name: Prepare GitHub Pages
       run: |
         mkdir -p gh-pages
-        cp ERP/frontend-wasm/index.html gh-pages/
-        cp -r ERP/frontend-wasm/pkg gh-pages/
-        cp ERP/Arcsat.ico gh-pages/
-        cp ERP/CNAME gh-pages/
+        cp frontend-wasm/index.html gh-pages/
+        cp -r frontend-wasm/pkg gh-pages/
+        cp Arcsat.ico gh-pages/ || true
+        cp CNAME gh-pages/ || true
 
     - name: Deploy to GitHub Pages
       uses: peaceiris/actions-gh-pages@v3
@@ -102,12 +102,10 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ./ERP
-        file: ./ERP/Dockerfile
+        context: .
+        file: ./Dockerfile
         push: ${{ github.event_name != 'pull_request' }}
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        build-args: |
-          MONGO_ATLAS_URI=${{ secrets.MONGO_ATLAS_URI }}
