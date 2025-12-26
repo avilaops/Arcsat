@@ -1,0 +1,44 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - 'ERP/backend/**'
+      - 'ERP/frontend/**'
+      - '.github/workflows/railway-deploy.yml'
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install Railway CLI
+      run: npm install -g @railway/cli
+
+    - name: Deploy Backend to Railway
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        cd ERP/backend
+        railway up --service backend
+
+    - name: Deploy Frontend to Railway
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        cd ERP/frontend
+        railway up --service frontend
+
+    - name: Notify deployment status
+      if: always()
+      run: |
+        if [ ${{ job.status }} == 'success' ]; then
+          echo "✅ Deploy successful!"
+        else
+          echo "❌ Deploy failed!"
+        fi
