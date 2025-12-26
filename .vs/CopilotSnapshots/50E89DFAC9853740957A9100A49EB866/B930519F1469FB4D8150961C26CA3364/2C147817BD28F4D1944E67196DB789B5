@@ -1,0 +1,53 @@
+﻿[package]
+name = "erp-backend"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Web Framework
+axum = { version = "0.7", features = ["macros"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["cors", "trace", "compression-gzip"] }
+
+# Database
+sqlx = { version = "0.8", features = ["runtime-tokio", "postgres", "migrate", "macros", "chrono", "uuid", "json"] }
+mongodb = "2.8"
+bson = { version = "2.9", features = ["chrono-0_4"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Async Runtime
+tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+
+# Logging & Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+
+# Validation
+validator = { version = "0.18", features = ["derive"] }
+
+# Error Handling
+anyhow = "1"
+thiserror = "1"
+
+# Auth & Security
+jsonwebtoken = "9"
+bcrypt = "0.15"
+argon2 = "0.5"
+
+# Utils
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+dotenv = "0.15"
+
+# HTTP Client (para integrações)
+reqwest = { version = "0.12", features = ["json"] }
+
+# Redis (cache)
+redis = { version = "0.25", features = ["tokio-comp", "connection-manager"] }
+
+[dev-dependencies]
+mockall = "0.12"

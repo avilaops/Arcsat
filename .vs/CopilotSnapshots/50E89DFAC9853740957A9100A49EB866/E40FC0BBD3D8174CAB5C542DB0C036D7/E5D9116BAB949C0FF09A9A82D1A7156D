@@ -1,0 +1,334 @@
+﻿use crate::{db::DbPool, error::Result, models::*};
+use axum::{
+    extract::{Path, Query, State},
+    http::StatusCode,
+    response::Json,
+    routing::{get, patch, post},
+    Router,
+};
+use std::sync::Arc;
+use uuid::Uuid;
+use validator::Validate;
+
+pub fn routes(pool: DbPool) -> Router {
+    Router::new()
+        .route("/leads", post(create_lead).get(list_leads))
+        .route("/leads/:id", get(get_lead))
+        .route("/leads/:id/stage", patch(update_lead_stage))
+        .route("/opportunities/forecast", get(sales_forecast))
+        .route("/accounts/:id/health-score", get(account_health_score))
+        .with_state(Arc::new(pool))
+}
+
+// ============================================================================
+// HANDLERS
+// ============================================================================
+
+async fn create_lead(
+    State(pool): State<Arc<DbPool>>,
+    Json(payload): Json<CreateLeadRequest>,
+) -> Result<(StatusCode, Json<LeadResponse>)> {
+    payload.validate()
+        .map_err(|e| crate::error::AppError::Validation(e.to_string()))?;
+
+    let lead_id = Uuid::new_v4();
+    let tenant_id = Uuid::new_v4(); // TODO: Extrair do JWT
+    let owner_id = Uuid::new_v4(); // TODO: Extrair do JWT
+    
+    let score = calculate_lead_score(&payload);
+
+    let lead = sqlx::query_as!(
+        Lead,
+        r#"
+        INSERT INTO crm_leads 
+            (id, tenant_id, name, company, email, phone, source, stage, score, value, probability, owner_id)
+        VALUES 
+            ($1, $2, $3, $4, $5, $6, $7, 'new', $8, $9, 20, $10)
+        RETURNING *
+        "#,
+        lead_id,
+        tenant_id,
+        payload.name,
+        payload.company,
+        payload.email,
+        payload.phone,
+        payload.source,
+        score,
+        rust_decimal::Decimal::from_f64_retain(payload.value).unwrap(),
+        owner_id,
+    )
+    .fetch_one(pool.as_ref())
+    .await?;
+
+    let response = LeadResponse {
+        id: lead.id,
+        name: lead.name,
+        company: lead.company,
+        email: lead.email,
+        stage: lead.stage,
+        score: lead.score,
+        value: lead.value.to_string(),
+        created_at: lead.created_at,
+    };
+
+    Ok((StatusCode::CREATED, Json(response)))
+}
+
+async fn get_lead(
+    State(pool): State<Arc<DbPool>>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<Lead>> {
+    let tenant_id = Uuid::new_v4(); // TODO: Extrair do JWT
+
+    let lead = sqlx::query_as!(
+        Lead,
+        r#"
+        SELECT * FROM crm_leads
+        WHERE id = $1 AND tenant_id = $2
+        "#,
+        id,
+        tenant_id
+    )
+    .fetch_optional(pool.as_ref())
+    .await?
+    .ok_or_else(|| crate::error::AppError::NotFound("Lead not found".to_string()))?;
+
+    Ok(Json(lead))
+}
+
+async fn list_leads(
+    State(pool): State<Arc<DbPool>>,
+    Query(query): Query<ListLeadsQuery>,
+) -> Result<Json<PaginatedResponse<LeadResponse>>> {
+    let tenant_id = Uuid::new_v4(); // TODO: Extrair do JWT
+    
+    let page = query.page.unwrap_or(1);
+    let limit = query.limit.unwrap_or(50).min(100);
+    let offset = (page - 1) * limit;
+
+    let total: (i64,) = sqlx::query_as(
+        "SELECT COUNT(*) FROM crm_leads WHERE tenant_id = $1"
+    )
+    .bind(tenant_id)
+    .fetch_one(pool.as_ref())
+    .await?;
+
+    let total_items = total.0;
+    let total_pages = ((total_items as f64) / (limit as f64)).ceil() as i32;
+
+    let leads = sqlx::query_as!(
+        Lead,
+        r#"
+        SELECT * FROM crm_leads 
+        WHERE tenant_id = $1
+        ORDER BY created_at DESC
+        LIMIT $2 OFFSET $3
+        "#,
+        tenant_id,
+        limit as i64,
+        offset as i64,
+    )
+    .fetch_all(pool.as_ref())
+    .await?;
+
+    let data: Vec<LeadResponse> = leads
+        .into_iter()
+        .map(|l| LeadResponse {
+            id: l.id,
+            name: l.name,
+            company: l.company,
+            email: l.email,
+            stage: l.stage,
+            score: l.score,
+            value: l.value.to_string(),
+            created_at: l.created_at,
+        })
+        .collect();
+
+    Ok(Json(PaginatedResponse {
+        data,
+        pagination: Pagination {
+            current_page: page,
+            total_pages,
+            total_items,
+            per_page: limit,
+        },
+    }))
+}
+
+async fn update_lead_stage(
+    State(pool): State<Arc<DbPool>>,
+    Path(lead_id): Path<Uuid>,
+    Json(payload): Json<UpdateLeadStageRequest>,
+) -> Result<Json<Lead>> {
+    let tenant_id = Uuid::new_v4(); // TODO: Extrair do JWT
+
+    let probability = calculate_probability(&payload.stage);
+
+    let lead = sqlx::query_as!(
+        Lead,
+        r#"
+        UPDATE crm_leads 
+        SET stage = $1, probability = $2, updated_at = NOW()
+        WHERE id = $3 AND tenant_id = $4
+        RETURNING *
+        "#,
+        payload.stage,
+        probability,
+        lead_id,
+        tenant_id,
+    )
+    .fetch_optional(pool.as_ref())
+    .await?
+    .ok_or_else(|| crate::error::AppError::NotFound("Lead not found".to_string()))?;
+
+    Ok(Json(lead))
+}
+
+async fn sales_forecast(
+    State(pool): State<Arc<DbPool>>,
+) -> Result<Json<ForecastResponse>> {
+    let tenant_id = Uuid::new_v4(); // TODO: Extrair do JWT
+
+    let result = sqlx::query!(
+        r#"
+        SELECT 
+            stage,
+            COUNT(*) as "count!",
+            SUM(value) as "total_value!",
+            AVG(probability) as "avg_probability!"
+        FROM crm_leads
+        WHERE tenant_id = $1 
+          AND stage NOT IN ('won', 'lost')
+        GROUP BY stage
+        "#,
+        tenant_id
+    )
+    .fetch_all(pool.as_ref())
+    .await?;
+
+    let mut weighted_total = 0.0;
+    let mut breakdown = serde_json::Map::new();
+
+    for row in result {
+        let total = row.total_value.to_f64().unwrap_or(0.0);
+        let prob = row.avg_probability.unwrap_or(0.0);
+        let stage_value = total * (prob / 100.0);
+        weighted_total += stage_value;
+
+        breakdown.insert(
+            row.stage.clone(),
+            serde_json::json!({
+                "count": row.count,
+                "value": total,
+                "probability": prob
+            }),
+        );
+    }
+
+    Ok(Json(ForecastResponse {
+        period: "Q1-2024".to_string(),
+        forecast: ForecastValues {
+            best_case: weighted_total * 1.35,
+            most_likely: weighted_total,
+            worst_case: weighted_total * 0.65,
+            weighted: weighted_total,
+        },
+        breakdown_by_stage: serde_json::Value::Object(breakdown),
+    }))
+}
+
+async fn account_health_score(
+    State(pool): State<Arc<DbPool>>,
+    Path(account_id): Path<Uuid>,
+) -> Result<Json<AccountHealthScore>> {
+    let tenant_id = Uuid::new_v4(); // TODO: Extrair do JWT
+
+    let account = sqlx::query_as!(
+        Account,
+        r#"
+        SELECT * FROM crm_accounts
+        WHERE id = $1 AND tenant_id = $2
+        "#,
+        account_id,
+        tenant_id
+    )
+    .fetch_optional(pool.as_ref())
+    .await?
+    .ok_or_else(|| crate::error::AppError::NotFound("Account not found".to_string()))?;
+
+    // Calcular health score (simplificado)
+    let health_score = account.health_score.unwrap_or(75);
+    let status = if health_score >= 70 {
+        "healthy"
+    } else if health_score >= 50 {
+        "at_risk"
+    } else {
+        "critical"
+    };
+
+    let response = AccountHealthScore {
+        account_id: account.id,
+        health_score,
+        status: status.to_string(),
+        factors: serde_json::json!({
+            "engagement": {"score": 85, "weight": 30, "trend": "up"},
+            "financial": {"score": 70, "weight": 25, "trend": "stable"},
+            "support_tickets": {"score": 80, "weight": 20, "trend": "up"},
+            "product_usage": {"score": 75, "weight": 25, "trend": "down"}
+        }),
+        risk_indicators: vec![
+            RiskIndicator {
+                r#type: "low_usage".to_string(),
+                severity: "medium".to_string(),
+                message: "Uso do produto caiu 15% no último mês".to_string(),
+            }
+        ],
+        recommendations: vec![
+            "Agendar quarterly business review".to_string(),
+            "Oferecer treinamento avançado".to_string(),
+        ],
+    };
+
+    Ok(Json(response))
+}
+
+// ============================================================================
+// HELPERS
+// ============================================================================
+
+fn calculate_lead_score(lead: &CreateLeadRequest) -> i32 {
+    let mut score = 50;
+
+    if lead.value > 100000.0 {
+        score += 20;
+    } else if lead.value > 50000.0 {
+        score += 10;
+    }
+
+    match lead.source.as_str() {
+        "linkedin" => score += 15,
+        "referral" => score += 20,
+        "website" => score += 10,
+        _ => {}
+    }
+
+    if lead.company.is_some() {
+        score += 5;
+    }
+
+    score.min(100)
+}
+
+fn calculate_probability(stage: &str) -> i32 {
+    match stage {
+        "new" => 10,
+        "contacted" => 15,
+        "qualification" => 25,
+        "proposal" => 60,
+        "negotiation" => 80,
+        "won" => 100,
+        "lost" => 0,
+        _ => 20,
+    }
+}

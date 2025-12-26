@@ -1,0 +1,368 @@
+﻿use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+use uuid::Uuid;
+use validator::Validate;
+
+// ============================================================================
+// CRM - LEADS
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct Lead {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub name: String,
+    pub company: Option<String>,
+    pub email: String,
+    pub phone: Option<String>,
+    pub source: String,
+    pub stage: String,
+    pub score: i32,
+    pub value: rust_decimal::Decimal,
+    pub probability: i32,
+    pub owner_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateLeadRequest {
+    #[validate(length(min = 2, max = 255))]
+    pub name: String,
+    
+    #[validate(length(max = 255))]
+    pub company: Option<String>,
+    
+    #[validate(email)]
+    pub email: String,
+    
+    #[validate(length(max = 20))]
+    pub phone: Option<String>,
+    
+    #[validate(length(min = 2, max = 50))]
+    pub source: String,
+    
+    pub value: f64,
+    
+    pub expected_close_date: Option<chrono::NaiveDate>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateLeadStageRequest {
+    pub stage: String,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ListLeadsQuery {
+    pub stage: Option<String>,
+    pub score_min: Option<i32>,
+    pub page: Option<i32>,
+    pub limit: Option<i32>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LeadResponse {
+    pub id: Uuid,
+    pub name: String,
+    pub company: Option<String>,
+    pub email: String,
+    pub stage: String,
+    pub score: i32,
+    pub value: String,
+    pub created_at: DateTime<Utc>,
+}
+
+// ============================================================================
+// CRM - ACCOUNTS
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct Account {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub name: String,
+    pub cnpj: Option<String>,
+    pub industry: Option<String>,
+    pub employees_count: Option<i32>,
+    pub annual_revenue: Option<rust_decimal::Decimal>,
+    pub website: Option<String>,
+    pub account_manager_id: Option<Uuid>,
+    pub health_score: Option<i32>,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct AccountHealthScore {
+    pub account_id: Uuid,
+    pub health_score: i32,
+    pub status: String,
+    pub factors: serde_json::Value,
+    pub risk_indicators: Vec<RiskIndicator>,
+    pub recommendations: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RiskIndicator {
+    pub r#type: String,
+    pub severity: String,
+    pub message: String,
+}
+
+// ============================================================================
+// FINANCEIRO
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct AccountsPayable {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub supplier_id: Option<Uuid>,
+    pub invoice_number: Option<String>,
+    pub description: String,
+    pub amount: rust_decimal::Decimal,
+    pub due_date: chrono::NaiveDate,
+    pub payment_date: Option<chrono::NaiveDate>,
+    pub status: String,
+    pub category: Option<String>,
+    pub cost_center: Option<String>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct CreateAccountsPayableRequest {
+    #[validate(length(min = 3, max = 500))]
+    pub description: String,
+    
+    pub amount: f64,
+    pub due_date: chrono::NaiveDate,
+    
+    #[validate(length(max = 100))]
+    pub invoice_number: Option<String>,
+    
+    pub supplier_id: Option<Uuid>,
+    pub category: Option<String>,
+    pub cost_center: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CashflowProjection {
+    pub month: String,
+    pub opening_balance: f64,
+    pub inflows: Inflows,
+    pub outflows: Outflows,
+    pub closing_balance: f64,
+    pub ai_confidence: f32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Inflows {
+    pub sales: f64,
+    pub receivables: f64,
+    pub other: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Outflows {
+    pub payroll: f64,
+    pub suppliers: f64,
+    pub taxes: f64,
+    pub operational: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DREResponse {
+    pub period: String,
+    pub summary: DRESummary,
+    pub monthly: Vec<MonthlyDRE>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DRESummary {
+    pub revenue: RevenueMetrics,
+    pub costs: CostMetrics,
+    pub expenses: ExpenseMetrics,
+    pub ebitda: f64,
+    pub ebitda_margin: f64,
+    pub net_income: f64,
+    pub net_margin: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RevenueMetrics {
+    pub gross: f64,
+    pub net: f64,
+    pub growth_yoy: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CostMetrics {
+    pub cogs: f64,
+    pub gross_margin: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExpenseMetrics {
+    pub sales: f64,
+    pub administrative: f64,
+    pub operational: f64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MonthlyDRE {
+    pub month: String,
+    pub revenue: f64,
+    pub ebitda: f64,
+    pub margin: f64,
+}
+
+// ============================================================================
+// RECURSOS HUMANOS
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct Employee {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub full_name: String,
+    pub cpf: String,
+    pub email: Option<String>,
+    pub phone: Option<String>,
+    pub employment_type: String,
+    pub status: String,
+    pub department: Option<String>,
+    pub position: Option<String>,
+    pub admission_date: chrono::NaiveDate,
+    pub base_salary: Option<rust_decimal::Decimal>,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PayrollCalculation {
+    pub employee_id: Uuid,
+    pub name: String,
+    pub gross_salary: f64,
+    pub overtime: f64,
+    pub benefits: f64,
+    pub deductions: PayrollDeductions,
+    pub net_salary: f64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PayrollDeductions {
+    pub inss: f64,
+    pub irrf: f64,
+    pub health_plan: f64,
+    pub other: f64,
+}
+
+// ============================================================================
+// PAGINAÇÃO
+// ============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct PaginatedResponse<T> {
+    pub data: Vec<T>,
+    pub pagination: Pagination,
+}
+
+#[derive(Debug, Serialize)]
+pub struct Pagination {
+    pub current_page: i32,
+    pub total_pages: i32,
+    pub total_items: i64,
+    pub per_page: i32,
+}
+
+// ============================================================================
+// AUTENTICAÇÃO
+// ============================================================================
+
+#[derive(Debug, Serialize, Deserialize, FromRow)]
+pub struct User {
+    pub id: Uuid,
+    pub tenant_id: Uuid,
+    pub email: String,
+    pub name: String,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+pub struct LoginRequest {
+    #[validate(email)]
+    pub email: String,
+    
+    #[validate(length(min = 8))]
+    pub password: String,
+    
+    pub tenant_domain: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LoginResponse {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub expires_in: i64,
+    pub user: UserInfo,
+}
+
+#[derive(Debug, Serialize)]
+pub struct UserInfo {
+    pub id: Uuid,
+    pub name: String,
+    pub email: String,
+    pub roles: Vec<String>,
+    pub tenant_id: Uuid,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Claims {
+    pub sub: String, // user_id
+    pub tenant_id: String,
+    pub email: String,
+    pub roles: Vec<String>,
+    pub exp: i64,
+}
+
+// ============================================================================
+// ANALYTICS
+// ============================================================================
+
+#[derive(Debug, Serialize)]
+pub struct KPIResponse {
+    pub period: String,
+    pub mrr: KPIMetric,
+    pub arr: KPIMetric,
+    pub cac: KPIMetric,
+    pub ltv: KPIMetric,
+    pub ltv_cac_ratio: f64,
+    pub churn_rate: KPIMetric,
+}
+
+#[derive(Debug, Serialize)]
+pub struct KPIMetric {
+    pub value: f64,
+    pub change: f64,
+    pub trend: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ForecastResponse {
+    pub period: String,
+    pub forecast: ForecastValues,
+    pub breakdown_by_stage: serde_json::Value,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ForecastValues {
+    pub best_case: f64,
+    pub most_likely: f64,
+    pub worst_case: f64,
+    pub weighted: f64,
+}

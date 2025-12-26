@@ -1,0 +1,68 @@
+﻿use axum::{
+    http::StatusCode,
+    response::{IntoResponse, Response},
+    Json,
+};
+use serde_json::json;
+
+pub type Result<T> = std::result::Result<T, AppError>;
+
+#[derive(Debug, thiserror::Error)]
+pub enum AppError {
+    #[error("Database error: {0}")]
+    Database(#[from] mongodb::error::Error),
+    
+    #[error("PostgreSQL error: {0}")]
+    Sqlx(#[from] sqlx::Error),
+
+    #[error("Not found: {0}")]
+    NotFound(String),
+
+    #[error("Invalid ObjectId: {0}")]
+    InvalidObjectId(#[from] mongodb::bson::oid::Error),
+    
+    #[error("Validation error: {0}")]
+    Validation(String),
+
+    #[error("Unauthorized")]
+    Unauthorized,
+
+    #[error("Forbidden")]
+    Forbidden,
+
+    #[error("Internal server error")]
+    Internal(#[from] anyhow::Error),
+}
+
+impl IntoResponse for AppError {
+    fn into_response(self) -> Response {
+        let (status, error_message) = match self {
+            AppError::Database(ref e) => {
+                tracing::error!("MongoDB error: {:?}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Database error occurred")
+            }
+            AppError::Sqlx(ref e) => {
+                tracing::error!("PostgreSQL error: {:?}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Database error occurred")
+            }
+            AppError::NotFound(ref msg) => (StatusCode::NOT_FOUND, msg.as_str()),
+            AppError::InvalidObjectId(e) => (StatusCode::BAD_REQUEST, "Invalid ID format"),
+            AppError::Validation(ref msg) => (StatusCode::BAD_REQUEST, msg.as_str()),
+            AppError::Unauthorized => (StatusCode::UNAUTHORIZED, "Unauthorized"),
+            AppError::Forbidden => (StatusCode::FORBIDDEN, "Forbidden"),
+            AppError::Internal(ref e) => {
+                tracing::error!("Internal error: {:?}", e);
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error")
+            }
+        };
+
+        let body = Json(json!({
+            "error": {
+                "code": status.as_u16(),
+                "message": error_message,
+            }
+        }));
+
+        (status, body).into_response()
+    }
+}

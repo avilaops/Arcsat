@@ -1,0 +1,51 @@
+﻿use sqlx::{Pool, Postgres};
+use std::time::Duration;
+
+pub type DbPool = Pool<Postgres>;
+
+/// Criar connection pool para PostgreSQL
+pub async fn create_pool(database_url: &str) -> Result<DbPool, sqlx::Error> {
+    tracing::info!("Creating database connection pool...");
+
+    sqlx::postgres::PgPoolOptions::new()
+        .max_connections(100) // Aumentado para produção
+        .min_connections(10)
+        .acquire_timeout(Duration::from_secs(10))
+        .idle_timeout(Duration::from_secs(600)) // 10 minutos
+        .max_lifetime(Duration::from_secs(1800)) // 30 minutos
+        .test_before_acquire(true) // Testar conexão antes de usar
+        .connect(database_url)
+        .await
+}
+
+/// Executar migrations
+pub async fn run_migrations(pool: &DbPool) -> Result<(), sqlx::Error> {
+    tracing::info!("Running database migrations...");
+    sqlx::migrate!("./migrations").run(pool).await?;
+    tracing::info!("Migrations completed successfully");
+    Ok(())
+}
+
+/// Health check do banco de dados
+pub async fn health_check(pool: &DbPool) -> Result<(), sqlx::Error> {
+    sqlx::query("SELECT 1")
+        .fetch_one(pool)
+        .await?;
+    Ok(())
+}
+
+/// Estatísticas do connection pool
+pub fn pool_stats(pool: &DbPool) -> PoolStats {
+    PoolStats {
+        size: pool.size(),
+        idle: pool.num_idle(),
+        active: pool.size() - pool.num_idle(),
+    }
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct PoolStats {
+    pub size: u32,
+    pub idle: usize,
+    pub active: u32,
+}

@@ -1,0 +1,70 @@
+﻿use anyhow::Context;
+use axum::{routing::get, Router};
+use std::net::SocketAddr;
+use tower_http::cors::{Any, CorsLayer};
+
+mod error;
+mod models;
+mod mongodb;
+mod routes;
+
+use mongodb::MongoDb;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    dotenv::dotenv().ok();
+    tracing_subscriber::fmt::init();
+
+    let mongo_uri = std::env::var("MONGO_ATLAS_URI")
+        .context("A variável de ambiente MONGO_ATLAS_URI não está definida. Configure o arquivo .env do backend ou defina-a no ambiente antes de iniciar o servidor.")?;
+
+    let mongo_db_name = std::env::var("MONGO_DB_NAME").unwrap_or_else(|_| "erp".to_string());
+
+    tracing::info!(
+        "Tentando conectar ao MongoDB Atlas (db: {})...",
+        mongo_db_name
+    );
+
+    let mongo = match MongoDb::new(&mongo_uri, &mongo_db_name).await {
+        Ok(db) => {
+            tracing::info!("✅ Conectado ao MongoDB Atlas");
+            db
+        }
+        Err(e) => {
+            tracing::error!("❌ Erro ao conectar no MongoDB: {}", e);
+            return Err(e.into());
+        }
+    };
+
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    let api_routes = Router::new()
+        .merge(routes::frontend::routes())
+        .nest("/financeiro", routes::financeiro::routes(mongo.clone()))
+        .nest("/bancos", routes::bancos::routes(mongo));
+
+    let app = Router::new()
+        .route("/health", get(|| async { "OK" }))
+        .nest("/api/v1", api_routes)
+        .layer(cors);
+
+    let host = std::env::var("HOST").unwrap_or_else(|_| "127.0.0.1".to_string());
+    let port = std::env::var("PORT")
+        .ok()
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(3000);
+
+    let addr: SocketAddr = format!("{}:{}", host, port)
+        .parse()
+        .context("HOST ou PORT inválidos. Use valores como HOST=0.0.0.0 e PORT=3000")?;
+
+    tracing::info!("🚀 Servidor rodando em http://{}", addr);
+
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}
