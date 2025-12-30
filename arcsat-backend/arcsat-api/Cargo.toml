@@ -1,0 +1,39 @@
+[package]
+name = "arcsat-api"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "arcsat-server"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace crates
+arcsat-core = { path = "../arcsat-core" }
+arcsat-market-intelligence = { path = "../arcsat-market-intelligence" }
+
+# Async & Web
+tokio = { workspace = true }
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database
+sqlx = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utils
+anyhow = { workspace = true }
+uuid = { workspace = true }
+chrono = { workspace = true }
+
+# Config
+dotenv = "0.15"

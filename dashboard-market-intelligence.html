@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Arcsat Market Intelligence - Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .stat-card .label {
+            color: #888;
+            font-size: 0.9em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            color: #333;
+            font-size: 2.5em;
+            font-weight: bold;
+        }
+
+        .stat-card .icon {
+            font-size: 3em;
+            margin-bottom: 10px;
+            opacity: 0.7;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .panel {
+            background: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+        }
+
+        .panel h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .job-form {
+            display: grid;
+            gap: 15px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            color: #555;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        input, select {
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1em;
+            transition: border-color 0.3s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .jobs-list {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+
+        .job-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+
+        .job-item .job-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .job-item .job-title {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .job-item .job-status {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+
+        .status-pending { background: #ffc107; color: #000; }
+        .status-running { background: #17a2b8; color: #fff; }
+        .status-completed { background: #28a745; color: #fff; }
+        .status-failed { background: #dc3545; color: #fff; }
+
+        .job-meta {
+            color: #666;
+            font-size: 0.9em;
+        }
+
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🕷️ Arcsat Market Intelligence</h1>
+            <p class="subtitle">Dashboard de Análise de Marketplaces</p>
+        </header>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="icon">📊</div>
+                <div class="label">Jobs Totais</div>
+                <div class="value" id="totalJobs">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">✅</div>
+                <div class="label">Completados</div>
+                <div class="value" id="completedJobs">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">⏳</div>
+                <div class="label">Em Andamento</div>
+                <div class="value" id="runningJobs">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="icon">🛒</div>
+                <div class="label">Produtos Coletados</div>
+                <div class="value" id="totalProducts">-</div>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <div class="panel">
+                <h2>🚀 Criar Novo Job</h2>
+
+                <div id="alertContainer"></div>
+
+                <form class="job-form" id="jobForm">
+                    <div class="form-group">
+                        <label for="marketplace">Marketplace</label>
+                        <select id="marketplace" required>
+                            <option value="amazon">Amazon BR</option>
+                            <option value="mercado_livre" selected>Mercado Livre</option>
+                            <option value="b2w">B2W/Americanas</option>
+                            <option value="magalu">Magazine Luiza</option>
+                            <option value="shopee">Shopee</option>
+                            <option value="aliexpress">AliExpress</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="searchQuery">Busca</label>
+                        <input type="text" id="searchQuery" placeholder="Ex: notebook gamer" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category">Categoria (opcional)</label>
+                        <input type="text" id="category" placeholder="Ex: eletrônicos">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="maxPages">Número de Páginas</label>
+                        <input type="number" id="maxPages" min="1" max="10" value="2" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="priority">Prioridade (1-10)</label>
+                        <input type="number" id="priority" min="1" max="10" value="5" required>
+                    </div>
+
+                    <button type="submit" id="submitBtn">
+                        <span id="btnText">🕷️ Iniciar Scraping</span>
+                        <span id="btnLoader" class="loading" style="display: none;"></span>
+                    </button>
+                </form>
+            </div>
+
+            <div class="panel">
+                <h2>📋 Jobs Recentes</h2>
+                <div class="jobs-list" id="jobsList">
+                    <p style="color: #888; text-align: center; padding: 50px 0;">
+                        Nenhum job ainda. Crie um para começar!
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3000/api/v1/market-intelligence';
+        let jobs = [];
+        let refreshInterval;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadJobs();
+            startAutoRefresh();
+
+            document.getElementById('jobForm').addEventListener('submit', handleSubmit);
+        });
+
+        async function handleSubmit(e) {
+            e.preventDefault();
+
+            const btn = document.getElementById('submitBtn');
+            const btnText = document.getElementById('btnText');
+            const btnLoader = document.getElementById('btnLoader');
+
+            btn.disabled = true;
+            btnText.style.display = 'none';
+            btnLoader.style.display = 'inline-block';
+
+            const data = {
+                marketplace: document.getElementById('marketplace').value,
+                search_query: document.getElementById('searchQuery').value,
+                category: document.getElementById('category').value || null,
+                max_pages: parseInt(document.getElementById('maxPages').value),
+                priority: parseInt(document.getElementById('priority').value)
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/jobs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    showAlert('success', `✅ Job criado com sucesso! ID: ${result.data.job_id}`);
+                    document.getElementById('jobForm').reset();
+                    loadJobs();
+                } else {
+                    showAlert('error', '❌ Erro ao criar job: ' + (result.error || 'Erro desconhecido'));
+                }
+            } catch (error) {
+                showAlert('error', '❌ Erro de conexão: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btnText.style.display = 'inline';
+                btnLoader.style.display = 'none';
+            }
+        }
+
+        function showAlert(type, message) {
+            const container = document.getElementById('alertContainer');
+            const alert = document.createElement('div');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            container.innerHTML = '';
+            container.appendChild(alert);
+
+            setTimeout(() => {
+                alert.remove();
+            }, 5000);
+        }
+
+        async function loadJobs() {
+            // TODO: Implementar endpoint GET /jobs quando backend tiver
+            // Por enquanto, simular com dados locais
+            updateStats();
+        }
+
+        function updateStats() {
+            // Mock data - em produção, virá da API
+            document.getElementById('totalJobs').textContent = jobs.length || '-';
+            document.getElementById('completedJobs').textContent =
+                jobs.filter(j => j.status === 'completed').length || '-';
+            document.getElementById('runningJobs').textContent =
+                jobs.filter(j => j.status === 'running').length || '-';
+            document.getElementById('totalProducts').textContent = '-';
+        }
+
+        function startAutoRefresh() {
+            refreshInterval = setInterval(() => {
+                loadJobs();
+            }, 5000);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>

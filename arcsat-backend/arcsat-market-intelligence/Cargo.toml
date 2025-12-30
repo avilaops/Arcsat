@@ -1,0 +1,43 @@
+[package]
+name = "arcsat-market-intelligence"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+# Workspace crates
+arcsat-core = { path = "../arcsat-core" }
+
+# Async & Web
+tokio = { workspace = true }
+futures = { workspace = true }
+reqwest = { workspace = true }
+axum = { workspace = true }
+
+# Scraping
+scraper = { workspace = true }
+headless_chrome = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database
+sqlx = { workspace = true }
+
+# Redis
+redis = { workspace = true }
+
+# Utils
+uuid = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+# Proxies
+async-http-proxy = { workspace = true }
+
+[lib]
+name = "arcsat_market_intelligence"
+path = "src/lib.rs"

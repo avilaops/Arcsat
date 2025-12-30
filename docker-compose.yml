@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  # Backend Rust (Existente)
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.railway
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://arcsat:arcsat@postgres:5432/arcsat_erp
+      - REDIS_URL=redis://redis:6379/0
+      - SCRAPER_SERVICE_URL=http://scraper:8001
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - arcsat-network
+
+  # Scraper Service (NOVO)
+  scraper:
+    build:
+      context: ./scraper-service
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    environment:
+      - DATABASE_URL=postgresql://arcsat:arcsat@postgres:5432/arcsat_erp
+      - REDIS_URL=redis://redis:6379/0
+      - PROXY_ENABLED=false  # Ative quando tiver proxy configurado
+      - SCRAPER_MAX_CONCURRENT=5
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - arcsat-network
+    volumes:
+      - ./scraper-service:/app
+    restart: unless-stopped
+
+  # PostgreSQL
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_USER=arcsat
+      - POSTGRES_PASSWORD=arcsat
+      - POSTGRES_DB=arcsat_erp
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - arcsat-network
+
+  # Redis (Para filas e cache)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - arcsat-network
+    command: redis-server --appendonly yes
+
+  # Redis Commander (UI para debug)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    environment:
+      - REDIS_HOSTS=local:redis:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - arcsat-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  arcsat-network:
+    driver: bridge

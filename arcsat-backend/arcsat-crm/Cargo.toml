@@ -1,0 +1,31 @@
+[package]
+name = "arcsat-crm"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[dependencies]
+# Workspace crates
+arcsat-core = { path = "../arcsat-core" }
+arcsat-market-intelligence = { path = "../arcsat-market-intelligence" }
+
+# Async & Web
+tokio = { workspace = true }
+axum = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Database
+sqlx = { workspace = true }
+
+# Utils
+uuid = { workspace = true }
+chrono = { workspace = true }
+anyhow = { workspace = true }
+tracing = { workspace = true }
+
+[lib]
+name = "arcsat_crm"
+path = "src/lib.rs"

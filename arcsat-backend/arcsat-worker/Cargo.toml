@@ -1,0 +1,30 @@
+[package]
+name = "arcsat-worker"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "arcsat-worker"
+path = "src/main.rs"
+
+[dependencies]
+# Workspace crates
+arcsat-core = { path = "../arcsat-core" }
+arcsat-market-intelligence = { path = "../arcsat-market-intelligence" }
+
+# Async
+tokio = { workspace = true }
+futures = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Utils
+anyhow = { workspace = true }
+dotenv = "0.15"
+
+# Signals
+signal-hook = "0.3"
+signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
