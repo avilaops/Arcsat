@@ -1,14 +1,23 @@
-FROM rust:1.75 as builder
+FROM rust:1.86 as builder
 
 WORKDIR /build
 
-# Copy backend
-COPY ERP/backend ./backend
-COPY ERP/Cargo.toml ./
+# Install Chrome for headless scraping
+RUN apt-get update && apt-get install -y \
+    wget \
+    gnupg \
+    ca-certificates \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable
+
+# Copy workspace
+COPY arcsat-backend ./arcsat-backend
 
 # Build backend
-WORKDIR /build/backend
-RUN cargo build --release
+WORKDIR /build/arcsat-backend
+RUN cargo build --release --bin arcsat-server
 
 # Runtime stage
 FROM debian:bookworm-slim
@@ -16,20 +25,37 @@ FROM debian:bookworm-slim
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     libssl3 \
+    wget \
+    gnupg \
+    curl \
+    && wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | gpg --dearmor -o /usr/share/keyrings/googlechrome-linux-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/googlechrome-linux-keyring.gpg] http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google.list \
+    && apt-get update \
+    && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Copy binary
-COPY --from=builder /build/backend/target/release/avila-erp-backend /app/backend
+COPY --from=builder /build/arcsat-backend/target/release/arcsat-server /app/arcsat-server
 
-# Criar diretório para database
+# Copy frontend files (with fallback if they don't exist)
+COPY index.html /app/static/ 2>/dev/null || true
+COPY assets /app/static/assets 2>/dev/null || true
+
+# Criar diretórios
 RUN mkdir -p /app/database
 
 ENV RUST_LOG=info
 ENV DATABASE_URL=sqlite:///app/database/erp.db
 ENV PORT=3000
+ENV STATIC_DIR=/app/static
+ENV CHROME_BIN=/usr/bin/google-chrome
 
 EXPOSE 3000
 
-CMD ["/app/backend"]
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:3000/api/v1/health || exit 1
+
+CMD ["/app/arcsat-server"]
